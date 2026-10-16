@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mizan – Returning to app</title>
+<style>
+  body { font-family: system-ui, sans-serif; text-align: center; margin-top: 80px; color: #1b1f1d; }
+  a { color: #0f5c4a; font-weight: bold; }
+</style>
+</head>
+<body>
+<p>Returning to Mizan… / Ritorno a Mizan… / جاري الرجوع لميزان…</p>
+<p><a id="open" href="#">Open Mizan</a></p>
+<script>
+  // Forwards the bank authorization result (?code=...&state=...) back into the app.
+  var target = "mizan://bank-callback" + window.location.search;
+  document.getElementById("open").href = target;
+  window.location.replace(target);
+</script>
+</body>
+</html>
