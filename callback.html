@@ -1,43 +1,91 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mizan – Bank connected</title>
-<style>
-  body { font-family: system-ui, sans-serif; text-align: center; margin: 60px auto; max-width: 720px; padding: 0 20px; color: #1b1f1d; }
-  h1 { color: #0f5c4a; }
-  textarea { width: 100%; height: 110px; font-size: 14px; padding: 10px; border-radius: 10px; border: 2px solid #0f5c4a; }
-  button, a.btn { display: inline-block; margin: 12px 6px; padding: 12px 22px; border-radius: 24px; border: 0; background: #0f5c4a; color: #fff; font-size: 16px; text-decoration: none; cursor: pointer; }
-  .err { color: #b3261e; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-fEBLMxgtISeIFGCb2oJXrkIL2aSkSrOQyM1bBXORwEI='; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>العودة إلى ميزان / Returning to Mizan</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6faf8; color: #173c31; }
+    main { box-sizing: border-box; width: min(100%, 540px); padding: 32px 24px; text-align: center; }
+    h1 { font-size: 25px; line-height: 1.6; } p { line-height: 1.8; }
+    a { display: inline-block; padding: 14px 26px; background: #0f5c4a; color: white; border-radius: 24px; text-decoration: none; }
+    .spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid #cbded6; border-top-color: #0f5c4a; border-radius: 50%; animation: spin 1s linear infinite; }
+    [hidden] { display: none !important; } @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+  </style>
 </head>
 <body>
-<h1 id="title">Bank approved ✓ / تمت الموافقة</h1>
-<p>Copy this text and paste it in the program. / انسخ النص ده والصقه في البرنامج.</p>
-<textarea id="url" readonly></textarea>
-<div>
-  <button id="copy">Copy / نسخ</button>
-  <a class="btn" id="open" href="#">Open Mizan app / افتح ميزان</a>
-</div>
-<p id="status"></p>
-<script>
-  // Shows the bank authorization result (?code=...&state=...) so it can be pasted,
-  // and offers to hand it to the Mizan app via its deep link.
-  var full = window.location.href;
-  var box = document.getElementById("url");
-  box.value = full;
-  if (window.location.search.indexOf("error") !== -1) {
-    document.getElementById("title").textContent = "Bank refused / البنك رفض";
-    document.getElementById("title").className = "err";
+  <main>
+    <div class="spinner" id="spinner" aria-hidden="true"></div>
+    <h1 id="title">بنرجعك لميزان… / Returning to Mizan…</h1>
+    <p id="message" role="status">هنكمّل نتيجة الربط جوه التطبيق. / The connection result will be completed in the app.</p>
+    <section id="fallback" hidden>
+      <p>لو المتصفح منع الفتح التلقائي، اضغط هنا. / If your browser blocked the automatic return, tap below.</p>
+      <a id="open" href="#">افتح ميزان / Open Mizan</a>
+    </section>
+    <noscript>فعّل JavaScript أو ارجع لتطبيق ميزان. / Enable JavaScript or return to Mizan.</noscript>
+  </main>
+  <script>(function () {
+  "use strict";
+  var title = document.getElementById("title");
+  var message = document.getElementById("message");
+  var fallback = document.getElementById("fallback");
+  var open = document.getElementById("open");
+  var raw = window.location.search;
+  // Remove one-time credentials from the visible URL and back-stack entry. Nothing is persisted or sent elsewhere.
+  try { window.history.replaceState(null, "", window.location.pathname); } catch (_) { }
+
+  function invalid() {
+    title.textContent = "الرابط غير صالح / Invalid return link";
+    message.textContent = "ارجع لميزان وحاول الربط من جديد. / Return to Mizan and try connecting again.";
+    document.getElementById("spinner").hidden = true;
   }
-  document.getElementById("open").href = "mizan://bank-callback" + window.location.search;
-  document.getElementById("copy").onclick = function () {
-    box.select();
-    navigator.clipboard.writeText(full).then(function () {
-      document.getElementById("status").textContent = "Copied ✓ / اتنسخ";
-    });
-  };
+
+  if (raw.length > 4096) { invalid(); return; }
+  var params = new URLSearchParams(raw);
+  var state = params.get("state");
+  var code = params.get("code");
+  var error = params.get("error");
+  if (["state", "code", "error"].some(function (key) { return params.getAll(key).length > 1; }) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(state || "") ||
+      (!code && !error) || (code && code.length > 2048) || (error && error.length > 128)) {
+    invalid(); return;
+  }
+
+  var query = new URLSearchParams();
+  query.set("state", state);
+  if (code) query.set("code", code);
+  if (error) query.set("error", /^[A-Za-z0-9_.-]{1,128}$/.test(error) ? error : "CALLBACK_ERROR");
+  var deepLink = "mizan://bank-callback?" + query.toString();
+  open.href = deepLink;
+  if (error) message.textContent = "بنرجعك لميزان لعرض نتيجة الربط. / Returning to Mizan with the connection result.";
+
+  // A verified Android App Link skips this page altogether. This is a single fallback attempt for other browsers.
+  // Do not retry on focus/resume: returning from the bank app must not restart authorization.
+  var timer = window.setTimeout(function () {
+    if (!document.hidden) {
+      document.getElementById("spinner").hidden = true;
+      fallback.hidden = false;
+    }
+  }, 1400);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) window.clearTimeout(timer);
+    else {
+      document.getElementById("spinner").hidden = true;
+      fallback.hidden = false;
+    }
+  });
+  if (/Android/i.test(navigator.userAgent)) {
+    try { window.location.replace(deepLink); }
+    catch (_) { window.clearTimeout(timer); fallback.hidden = false; }
+  } else {
+    window.clearTimeout(timer);
+    document.getElementById("spinner").hidden = true;
+    fallback.hidden = false;
+  }
+}());
 </script>
 </body>
 </html>
